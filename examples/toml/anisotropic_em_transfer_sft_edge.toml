@@ -1,0 +1,77 @@
+# Paired anisotropic-EM super-resolution using Cosmos3-Edge Transfer SFT.
+# The source/control is a synthetic thick-section video and the target is a
+# registered fine EM video.  The dataset adapter is registered by
+# `python -m nanocosmos_fw.train`, not `cosmos_framework.scripts.train`.
+
+[job]
+task = "vfm"
+experiment = "anisotropic_em_transfer_sft_edge"
+project = "nanocosmos"
+group = "sft"
+name = "anisotropic_em_transfer_sft_edge"
+wandb_mode = "disabled"
+
+[model]
+max_num_tokens_after_packing = 16384
+joint_attn_implementation = "two_way"
+precision = "bfloat16"
+
+[model.ema]
+enabled = true
+rate = 0.1
+iteration_shift = 0
+
+[model.parallelism]
+data_parallel_shard_degree = -1
+data_parallel_replicate_degree = 1
+
+[model.compile]
+enabled = false
+compile_dynamic = true
+
+[model.activation_checkpointing]
+mode = "full"
+preserve_rng_state = true
+determinism_check = "default"
+
+[model.tokenizer]
+vae_path = "${oc.env:WAN_VAE_PATH}"
+
+[optimizer]
+betas = [0.9, 0.95]
+eps = 1.0e-6
+fused = true
+lr = 1.0e-4
+weight_decay = 0
+keys_to_select = ["moe_gen", "time_embedder", "vae2llm", "llm2vae", "k_norm_und_for_gen"]
+
+[scheduler]
+cycle_lengths = [10000]
+warm_up_steps = [500]
+f_max = [1.0]
+f_min = [0.0]
+f_start = [0.0]
+verbosity_interval = 0
+
+[trainer]
+distributed_parallelism = "fsdp"
+grad_accum_iter = 1
+logging_iter = 10
+max_iter = 10000
+
+[trainer.callbacks.grad_clip]
+clip_norm = 0.1
+force_finite = true
+
+[trainer.callbacks.compile_tokenizer]
+enabled = false
+compile_after_iterations = 3
+
+[checkpoint]
+load_path = "${oc.env:BASE_CHECKPOINT_PATH}"
+keys_to_skip_loading = ["net_ema."]
+save_iter = 500
+
+[dataloader_train]
+max_samples_per_batch = 1
+max_sequence_length = 16384
